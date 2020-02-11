@@ -15,7 +15,9 @@ class ModChecker(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.veto_channel_list = db.query(["SELECT channel_id FROM channels WHERE setting = ?", ["veto"]])
-        self.bot.loop.create_task(self.mod_checker_background_loop())
+        self.bot.background_tasks.append(
+            self.bot.loop.create_task(self.mod_checker_background_loop())
+        )
 
     @commands.command(name="track", brief="Track the mapset in this channel", description="")
     @commands.guild_only()
@@ -336,17 +338,17 @@ class ModChecker(commands.Cog):
 
     async def notification_mode_tracking(self, discussions, channel, mapset_id):
         current_status = await self.check_if_resolved(discussions)  # 1 - we have new mods, 0 - no new mods
-        cached_status = db.query(["SELECT status FROM mapset_status "
+        cached_status = db.query(["SELECT status FROM mapset_notification_status "
                                   "WHERE mapset_id = ? AND channel_id = ?",
                                   [str(mapset_id), str(channel.id)]])
         if not cached_status:
-            db.query(["INSERT INTO mapset_status VALUES (?, ?, ?)",
-                      [str(mapset_id), str(channel.id), str(current_status)]])
+            db.query(["INSERT INTO mapset_notification_status VALUES (?, ?, ?, ?)",
+                      [str(mapset_id), str(0), str(channel.id), str(current_status)]])
             return None
 
         cached_status = cached_status[0][0]
         if cached_status != current_status:
-            db.query(["UPDATE mapset_status SET status = ? WHERE mapset_id = ? AND channel_id = ?",
+            db.query(["UPDATE mapset_notification_status SET status = ? WHERE mapset_id = ? AND channel_id = ?",
                       [str(current_status), str(mapset_id), str(channel.id)]])
             if current_status == "1":
                 unresolved_diffs = await self.get_unresolved_diffs(discussions)
